@@ -1,0 +1,150 @@
+version: "3"
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    hostname:
+      namenode
+    ports:
+      - 9870:9870
+      - 9820:9820
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - ./data:/data
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    hostname:
+      datanode
+    ports:
+      - 9864:9864
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    hostname:
+      resourcemanager
+    ports:
+      - 8088:8088
+      - 8032:8032
+      - 8031:8031
+      - 8030:8030
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864"
+    env_file:
+      - ./hadoop.env
+
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    hostname:
+      nodemanager
+    ports:
+      - 8042:8042
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+    container_name: historyserver
+    restart: always
+    hostname:
+      historyserver
+    ports:
+      - 8188:8188
+      - 10020:10020
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 resourcemanager:8088"
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop.env
+    container_name: hive-server
+    # command: 
+    #   - /opt/hive/bin/hive --service hiveserver2
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "resourcemanager:8088 hive-metastore:9083"
+    ports:
+      - 10000:10000
+      - 10001:10001
+      - 10002:10002
+    hostname: hive-server
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    env_file:
+      - ./hadoop.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore-postgresql:5432 resourcemanager:8088"
+    ports:
+      - "9083:9083"
+    hostname:
+       hive-metastore
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    ports:
+      - "5432:5432"
+    hostname:  hive-metastore-postgresql
+    volumes:
+     - hive_pg_data:/var/lib/postgresl/data/
+
+  # huedb:
+  #   image: postgres:12.1-alpine
+  #   volumes:
+  #     - pg_data:/var/lib/postgresl/data/
+  #   ports:
+  #     - "5433:5432"
+  #   env_file:
+  #     - ./hadoop.env
+  #   hostname: huedb
+  #   environment:
+  #       SERVICE_PRECONDITION: "resourcemanager:8088"
+  
+  # hue:
+  #   image: gethue/hue:4.6.0
+  #   hostname: hue
+  #   environment:
+  #       SERVICE_PRECONDITION: "huedb:5432"
+  #   env_file:
+  #     - ./hadoop.env
+  #   ports:
+  #     - "8888:8888"
+  #   volumes:
+  #     - ./hue-overrides.ini:/usr/share/hue/desktop/conf/hue-overrides.ini
+  #   links:
+  #     - huedb
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  hive_pg_data:
+  hadoop_historyserver:
+  # pg_data:
