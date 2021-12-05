@@ -1,0 +1,5 @@
+downloads/
+.venv/
+data/
+*.ppt
+*.pptx

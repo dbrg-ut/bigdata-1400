@@ -1,0 +1,61 @@
+version: '2'
+services:
+  postgres:
+    image: debezium/postgres:13-alpine
+    container_name: postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: nikamooz
+      POSTGRES_PASSWORD: nikamooz
+      
+    ports:
+      - 5432:5432
+    
+  zookeeper:
+    image: debezium/zookeeper
+    container_name: zookeeper
+    hostname: zookeeper
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+    ports:
+      - 2182:2181
+      - 2888:2888
+      - 3888:3888
+    # volumes: 
+    #   - ./data/zoo/data:/zookeeper/data
+    #   - ./data/zoo/log:/zookeeper/txns
+
+  kafka:
+    image: debezium/kafka
+    container_name: kafka
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      ZOOKEEPER_CONNECT: zookeeper:2181
+      BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+    # volumes: 
+    #   - ./data/kafka/data:/kafka/data
+    #   - ./data/kafka/logs:/kafka/logs
+
+  connect:
+    image: debezium/connect
+    container_name: connect
+    hostname: connect
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - 8083:8083
+    environment:
+      GROUP_ID: holding_group
+      CONFIG_STORAGE_TOPIC: holding_storage_topic
+      # The CONFIG_STORAGE_TOPIC variable must be set to the name of the topic where connector configurations will be stored.
+      OFFSET_STORAGE_TOPIC: holding_offset_topic
+      # "The OFFSET_STORAGE_TOPIC variable must be set to the name of the topic where connector offsets will be stored."
+      BOOTSTRAP_SERVERS: kafka:9092
+
