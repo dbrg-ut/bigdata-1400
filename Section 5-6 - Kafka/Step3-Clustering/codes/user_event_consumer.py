@@ -6,8 +6,9 @@ TOPIC_NAME = 'events_topic'
 consumer = KafkaConsumer(
     TOPIC_NAME,
     auto_offset_reset='earliest', # where to start reading the messages at
-    group_id='event-collector-group-1', # consumer group id
-    bootstrap_servers=['kafka1:9091','kafka2:9092','kafka3:9093'],
+    group_id='event-collector-group-10', # consumer group id
+    # bootstrap_servers=['kafka1:9091','kafka2:9092','kafka3:9093'],
+    bootstrap_servers=['localhost:9092'],
     value_deserializer=lambda m: json.loads(m.decode('utf-8')) ,# we deserialize our data from json
     security_protocol= 'PLAINTEXT'
 )

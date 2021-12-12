@@ -9,7 +9,8 @@ EVENT_TYPE_LIST = ['buy', 'sell', 'click', 'hover', 'idle_5']
 
 producer = KafkaProducer(
    value_serializer=lambda msg: json.dumps(msg).encode('utf-8'), # we serialize our data to json for efficent transfer
-   bootstrap_servers=['kafka1:9091','kafka2:9092','kafka3:9093'],
+   # bootstrap_servers=['kafka1:9091','kafka2:9092','kafka3:9093'],
+   bootstrap_servers=['localhost:9092'],
    key_serializer=str.encode)
 
 TOPIC_NAME = 'events_topic'
@@ -29,7 +30,7 @@ def _produce_event():
 def send_events():
     while(True):
         data = _produce_event()
-        time.sleep(3) # simulate some processing logic
+        time.sleep(1) # simulate some processing logic
         producer.send(TOPIC_NAME, value=data, key=data['event_id'])
         print(f"Event Created : {data['event_id']}")
 

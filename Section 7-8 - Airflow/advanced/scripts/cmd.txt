@@ -1,0 +1,11 @@
+#in Airflow Web Server 
+
+  pip3 install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r /home/airflow/shared/requirements.txt
+
+
+# in namenode container 
+  hadoop fs -mkdir -p  /data/data_lake/stock/1399
+ 
+Airflow Admin : 
+ -  Change webhdfs_default Connection Variable -> host : namenode
+ -  create fs_temp variable -> extra : {"path": "/tmp"}

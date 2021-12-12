@@ -1,0 +1,9 @@
+{
+	
+"EXCEL_FILE_NAME" : "daily_trades",
+"EXCEL_FILE_EXT_XLSX" : "xlsx",
+"EXCEL_FILE_EXT_CSV" : "csv",
+"EXCEL_FILE_PATH" : "/tmp",
+"HDFS_CSV_FOLDER" : "/data/data_lake/stock/fa_year="
+
+}
