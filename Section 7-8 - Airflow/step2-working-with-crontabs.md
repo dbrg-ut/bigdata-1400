@@ -15,7 +15,7 @@ $ sudo usermod -a -G crontab $(whoami)
 $ sudo service cron restart
 $ crontab -e
 
-* * * * * /usr/bin/date > /home/mojtaba/test.txt
+    * * * * * /usr/bin/date > /home/mojtaba/test.txt
 
 $ watch -n 5 ls -lh .
 
@@ -54,10 +54,10 @@ $ nano  combine_csv.sh
 sleep 20;
 
 flist=$(ls /home/mojtaba/data/stage/step1)
-stage1="/home/mojtaba/data/stage/step1"
-stage2="/home/mojtaba/data/stage/step2"
+stage1="/home/airflow/data/stage/step1"
+stage2="/home/airflow/data/stage/step2"
 fname="$stage2/$(date +%Y-%m-%d-%H).csv"
-logfile=/home/mojtaba/data/logs/step2.log
+logfile=/home/airflow/data/logs/step2.log
 
 echo "Begin at $(date)" >> $logfile
 for i in $flist ; do
