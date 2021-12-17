@@ -24,7 +24,7 @@
 # The following variables are supported:
 #
 # AIRFLOW_IMAGE_NAME           - Docker image name used to run Airflow.
-#                                Default: apache/airflow:2.2.0
+#                                Default: apache/airflow:|version|
 # AIRFLOW_UID                  - User ID in Airflow containers
 #                                Default: 50000
 # Those configurations are useful mostly in case of standalone testing/running Airflow in test/try-out mode
@@ -44,20 +44,19 @@ x-airflow-common:
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
-  image: ${AIRFLOW_IMAGE_NAME:-dockerhub.ir/apache/airflow:2.2.0}
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.2.2}
   # build: .
-  
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres_airflow/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis_airflow:6379/0
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-jdatetime pandas openpyxl apache-airflow-providers-apache-hdfs}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -74,9 +73,7 @@ x-airflow-common:
 
 services:
   postgres:
-    image: ${PG_VERSION:-dockerhub.ir/postgres:14-alpine}
-    hostname: postgres_airflow
-    container_name: postgres_airflow
+    image: postgres:13-alpine
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -87,16 +84,12 @@ services:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
       retries: 5
-    ports:
-      - 5532:5432
     restart: always
     networks:
       - services
 
   redis:
     image: redis:alpine
-    hostname: redis_airflow
-    container_name: redis_airflow
     expose:
       - 6379
     healthcheck:
@@ -141,31 +134,6 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
-    container_name: airflow_worker
-    hostname: airflow_worker
-    healthcheck:
-      test:
-        - "CMD-SHELL"
-        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    environment:
-      <<: *airflow-common-env
-      # Required to handle warm shutdown of the celery workers properly
-      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
-      DUMB_INIT_SETSID: "0"
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
-  airflow-worker2:
-    <<: *airflow-common
-    command: celery worker
-    container_name: airflow_worker2
-    hostname: airflow_worker2 
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -303,11 +271,136 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    hostname:
+      namenode
+    environment:
+      - CLUSTER_NAME=test
+    ports:
+      - 9870:9870
+      - 9000:9000
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - ./hdfs_data:/data
+    # environment:
+    #   - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    networks:
+      - services
 
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    hostname:
+      datanode
+    ports:
+      - 9864:9864
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - services
+  
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    hostname:
+      resourcemanager
+    ports:
+      - 8088:8088
+      - 8032:8032
+      - 8031:8031
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 datanode:9864"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - services
+
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    hostname:
+      nodemanager
+    ports:
+      - 8042:8042
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 datanode:9864 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - services
+  
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+    container_name: historyserver
+    restart: always
+    hostname:
+      historyserver
+    ports:
+      - 8188:8188
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 datanode:9864 resourcemanager:8088"
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    networks:
+      - services
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name : 'hive-server'
+    env_file:
+      - ./hadoop.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+    networks:
+      - services
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name : 'hive-metastore'
+    volumes:
+      - hive_data:/var/lib/postgresl/data/
+    env_file:
+      - ./hadoop.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    networks:
+      - services
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name : 'hive-metastore-postgres'
+    ports:
+      - "5433:5432"
+    networks:
+      - services
 
 volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  hadoop_historyserver:
+  hive_data :
   postgres-db-volume:
 
 networks: 
   services:
-    name: ${APP_NAME:-nikamooz}_network
+    name: ${APP_NAME:-hamrah_avval_ut}_network
