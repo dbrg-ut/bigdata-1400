@@ -315,4 +315,5 @@ volumes:
 
 networks: 
   services:
-    name: ${APP_NAME:-hamrah_avval_ut}_network
+    name: hamrah_avval_network
+    
